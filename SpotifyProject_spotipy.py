@@ -113,6 +113,40 @@ def search():
     # Render the search results page with the results
     #return render_template('search.html', results=results)
 
+@app.route('/recommend', methods=['GET', 'POST'])
+def recommend():
+    if not sp_oauth.validate_token(cache_handler.get_cached_token()):
+        auth_url = sp_oauth.get_authorize_url()
+        return redirect(auth_url)
+
+    recommendations = None
+    if request.method == 'POST':
+        seed_artists = request.form.get('seed_artists', '').strip()
+        seed_tracks = request.form.get('seed_tracks', '').strip()
+        seed_genres = request.form.get('seed_genres', '').strip()
+        limit = int(request.form.get('limit', 10))
+
+        try:
+            # Get recommendations based on the provided seeds
+            recommendation_results = sp.recommendations(
+                seed_artists=[seed_artists] if seed_artists else None,
+                seed_tracks=[seed_tracks] if seed_tracks else None,
+                seed_genres=[seed_genres] if seed_genres else None,
+                limit=limit
+            )
+            recommendations = [
+                {
+                    'name': track['name'],
+                    'artist': ', '.join(artist['name'] for artist in track['artists']),
+                    'url': track['external_urls']['spotify']
+                }
+                for track in recommendation_results['tracks']
+            ]
+        except Exception:
+            recommendations = {'error': f"An error occurred: {str(e)}"}
+
+    return render_template('recommend.html', recommendations=recommendations)
+
 
 @app.route('/get_playlists')
 def get_playlists():
