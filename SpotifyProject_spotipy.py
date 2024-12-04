@@ -113,6 +113,52 @@ def search():
     # Render the search results page with the results
     #return render_template('search.html', results=results)
 
+@app.route('/recommend', methods=['GET'])
+def recommend():
+    if not sp_oauth.validate_token(cache_handler.get_cached_token()):
+        auth_url = sp_oauth.get_authorize_url()
+        return redirect(auth_url)
+
+    try:
+        # Get users' liked songs
+        liked_songs = sp.current_user_saved_tracks(limit=50)  # if you need more you can change the number 50
+        artist_count = {}
+
+        # get all the liked songs from users.
+        for item in liked_songs['items']:
+            track = item['track']
+            for artist in track['artists']:
+                artist_id = artist['id']
+                artist_count[artist_id] = artist_count.get(artist_id, 0) + 1
+
+        # select top 5
+        top_artists = sorted(artist_count.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_artist_ids = [artist_id for artist_id, _ in top_artists]
+
+        # use the top 5 artists as seeds
+        recommendations = sp.recommendations(seed_artists=top_artist_ids, limit=10)
+
+        # form a recommendation track
+        recommended_tracks = [
+            {
+                'name': track['name'],
+                'url': track['external_urls']['spotify'],
+                'artists': ', '.join(artist['name'] for artist in track['artists'])
+            }
+            for track in recommendations['tracks']
+        ]
+
+        # react with html
+        response_html = '<h1>Recommended Tracks</h1><ul>'
+        for track in recommended_tracks:
+            response_html += f"<li>{track['name']} by {track['artists']} - <a href='{track['url']}'>Listen</a></li>"
+        response_html += '</ul>'
+
+        return response_html
+
+    except Exception as e:
+        return f"An error occurred: {e}"
+
 
 @app.route('/get_playlists')
 def get_playlists():
